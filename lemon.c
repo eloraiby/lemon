@@ -4179,6 +4179,10 @@ void ReportHeader(struct lemon *lemp, int outCpp)
   if( in ){
     int nextChar;
     if( outCpp && fgets(line,LINESIZE,in) ){
+      lemon_sprintf(pattern,"#pragma once\n");
+      if( strcmp(line,pattern) ) cppComp = 0;
+    }
+    if( outCpp && fgets(line,LINESIZE,in) ){
       lemon_sprintf(pattern,"#ifdef __cplusplus\n");
       if( strcmp(line,pattern) ) cppComp = 0;
     }
@@ -4217,7 +4221,7 @@ void ReportHeader(struct lemon *lemp, int outCpp)
   out = file_open(lemp,".h","wb");
   if( out ){
     if( outCpp ){
-      fprintf(out,"#ifdef __cplusplus\nenum %s_tokens {\n", lemp->name);
+      fprintf(out,"#pragma once\n#ifdef __cplusplus\nenum %s_tokens {\n", lemp->name);
 
       for(i=1; i<lemp->nterminal; i++){
 	fprintf(out,"\t%s%-30s = %2d,\n",prefix,lemp->symbols[i]->name,i);
