@@ -209,8 +209,8 @@ void Plink_delete(struct plink *);
 /********** From the file "report.h" *************************************/
 void Reprint(struct lemon *);
 void ReportOutput(struct lemon *);
-void ReportTable(struct lemon *, int);
-void ReportHeader(struct lemon *);
+void ReportTable(struct lemon *, int, int);
+void ReportHeader(struct lemon *, int);
 void CompressTables(struct lemon *);
 void ResortStates(struct lemon *);
 
@@ -1494,6 +1494,7 @@ int main(int argc, char **argv)
   static int mhflag = 0;
   static int nolinenosflag = 0;
   static int noResort = 0;
+  static int cpp = 0;
   static struct s_options options[] = {
     {OPT_FLAG, "b", (char*)&basisflag, "Print only the basis in report."},
     {OPT_FLAG, "c", (char*)&compress, "Don't compress the action table."},
@@ -1509,6 +1510,7 @@ int main(int argc, char **argv)
     {OPT_FLAG, "s", (char*)&statistics,
 				   "Print parser stats to standard output."},
     {OPT_FLAG, "x", (char*)&version, "Print the version number."},
+    {OPT_FLAG, "O", (char*)&cpp, "C++ output mode."},
     {OPT_FLAG,0,0,0}
   };
   int i;
@@ -1601,12 +1603,12 @@ int main(int argc, char **argv)
     if( !quiet ) ReportOutput(&lem);
 
     /* Generate the source code for the parser */
-    ReportTable(&lem, mhflag);
+    ReportTable(&lem, mhflag, cpp);
 
     /* Produce a header file for use by the scanner.  (This step is
     ** omitted if the "-m" option is used because makeheaders will
     ** generate the file for us.) */
-    if( !mhflag ) ReportHeader(&lem);
+    if( !mhflag ) ReportHeader(&lem, cpp);
   }
   if( statistics ){
     printf("Parser statistics: %d terminals, %d nonterminals, %d rules\n",
@@ -3715,7 +3717,8 @@ static void writeRuleText(FILE *out, struct rule *rp){
 /* Generate C source code for the parser */
 void ReportTable(
   struct lemon *lemp,
-  int mhflag     /* Output in makeheaders format if true */
+  int mhflag,    /* Output in makeheaders format if true */
+  int outCpp
 ){
   FILE *out, *in;
   char line[LINESIZE];
@@ -3732,7 +3735,11 @@ void ReportTable(
 
   in = tplt_open(lemp);
   if( in==0 ) return;
-  out = file_open(lemp,".c","wb");
+  if( outCpp ){
+    out = file_open(lemp,".cpp","wb");
+  } else {
+    out = file_open(lemp,".c","wb");
+  }
   if( out==0 ){
     fclose(in);
     return;
@@ -4157,35 +4164,71 @@ void ReportTable(
 }
 
 /* Generate a header file for the parser */
-void ReportHeader(struct lemon *lemp)
+void ReportHeader(struct lemon *lemp, int outCpp)
 {
   FILE *out, *in;
   const char *prefix;
   char line[LINESIZE];
   char pattern[LINESIZE];
   int i;
+  int cppComp = -1;
 
   if( lemp->tokenprefix ) prefix = lemp->tokenprefix;
   else                    prefix = "";
   in = file_open(lemp,".h","rb");
   if( in ){
     int nextChar;
-    for(i=1; i<lemp->nterminal && fgets(line,LINESIZE,in); i++){
+    if( outCpp && fgets(line,LINESIZE,in) ){
+      lemon_sprintf(pattern,"#ifdef __cplusplus\n");
+      if( strcmp(line,pattern) ) cppComp = 0;
+    }
+    if( cppComp == -1 && fgets(line,LINESIZE,in) ){
+      lemon_sprintf(pattern,"enum %s_tokens {\n", lemp->name);
+      if( strcmp(line,pattern) ) cppComp = 0;
+    }
+    for(i=1; cppComp == -1 && i<lemp->nterminal && fgets(line,LINESIZE,in); i++){
+      lemon_sprintf(pattern,"\t%s%-30s = %2d,\n",prefix,lemp->symbols[i]->name,i);
+      if( strcmp(line,pattern) ){ cppComp = 0; break; }
+    }
+    if( i==lemp->nterminal && fgets(line,LINESIZE,in) ){
+      lemon_sprintf(pattern,"};\n");
+      if( strcmp(line,pattern) ) cppComp = 0;
+    }
+    if( cppComp == -1 && fgets(line,LINESIZE,in) ){
+      lemon_sprintf(pattern,"#else /* __cplusplus*/\n");
+      if( strcmp(line,pattern) ) cppComp = 0;
+    }
+    for(i=1; cppComp == -1 && i<lemp->nterminal && fgets(line,LINESIZE,in); i++){
       lemon_sprintf(pattern,"#define %s%-30s %3d\n",
 		    prefix,lemp->symbols[i]->name,i);
       if( strcmp(line,pattern) ) break;
     }
+    if( outCpp && cppComp == -1 && fgets(line,LINESIZE,in) ){
+      lemon_sprintf(pattern,"#endif /* __cplusplus*/\n");
+      if( strcmp(line,pattern) ) cppComp = 0;
+    }
     nextChar = fgetc(in);
     fclose(in);
-    if( i==lemp->nterminal && nextChar==EOF ){
+    if( i==lemp->nterminal && nextChar==EOF && cppComp == -1){
       /* No change in the file.  Don't rewrite it. */
       return;
     }
   }
   out = file_open(lemp,".h","wb");
   if( out ){
+    if( outCpp ){
+      fprintf(out,"#ifdef __cplusplus\nenum %s_tokens {\n", lemp->name);
+
+      for(i=1; i<lemp->nterminal; i++){
+	fprintf(out,"\t%s%-30s = %2d,\n",prefix,lemp->symbols[i]->name,i);
+      }
+      fprintf(out,"};\n#else /* __cplusplus*/\n");
+    }
     for(i=1; i<lemp->nterminal; i++){
       fprintf(out,"#define %s%-30s %3d\n",prefix,lemp->symbols[i]->name,i);
+    }
+    if( outCpp ){
+      fprintf(out,"#endif /* __cplusplus*/\n");
     }
     fclose(out);
   }
