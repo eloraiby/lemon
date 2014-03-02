@@ -3626,7 +3626,7 @@ void print_stack_union(
   fprintf(out,"#define %sTOKENTYPE %s\n",name,
     lemp->tokentype?lemp->tokentype:"void*");  lineno++;
   if( mhflag ){ fprintf(out,"#endif\n"); lineno++; }
-  fprintf(out,"typedef struct {\n"); lineno++;
+  fprintf(out,"typedef union {\n"); lineno++;
   fprintf(out,"  int yyinit;\n"); lineno++;
   fprintf(out,"  %sTOKENTYPE yy0;\n",name); lineno++;
   for(i=0; i<arraysize; i++){
@@ -4187,7 +4187,7 @@ void ReportHeader(struct lemon *lemp, int outCpp)
       if( strcmp(line,pattern) ) cppComp = 0;
     }
     if( cppComp == -1 && fgets(line,LINESIZE,in) ){
-      lemon_sprintf(pattern,"enum %s_tokens {\n", lemp->name);
+      lemon_sprintf(pattern,"enum %s_token {\n", lemp->name);
       if( strcmp(line,pattern) ) cppComp = 0;
     }
     for(i=1; cppComp == -1 && i<lemp->nterminal && fgets(line,LINESIZE,in); i++){
@@ -4221,7 +4221,7 @@ void ReportHeader(struct lemon *lemp, int outCpp)
   out = file_open(lemp,".h","wb");
   if( out ){
     if( outCpp ){
-      fprintf(out,"#pragma once\n#ifdef __cplusplus\nenum %s_tokens {\n", lemp->name);
+      fprintf(out,"#pragma once\n#ifdef __cplusplus\nenum %s_token {\n", lemp->name);
 
       for(i=1; i<lemp->nterminal; i++){
 	fprintf(out,"\t%s%-30s = %2d,\n",prefix,lemp->symbols[i]->name,i);
