@@ -4213,10 +4213,11 @@ void ReportHeader(struct lemon *lemp, int useEnum)
       for(i=1; i<lemp->nterminal; i++){
 	fprintf(out,"\t%s%-30s = %2d,\n",prefix,lemp->symbols[i]->name,i);
       }
-      fprintf(out,"}; %s_token_e\n", lemp->name);
-    }
-    for(i=1; i<lemp->nterminal; i++){
-      fprintf(out,"#define %s%-30s %3d\n",prefix,lemp->symbols[i]->name,i);
+      fprintf(out,"} %s_token_e;\n", lemp->name);
+    } else {
+      for(i=1; i<lemp->nterminal; i++){
+	fprintf(out,"#define %s%-30s %3d\n",prefix,lemp->symbols[i]->name,i);
+      }
     }
 
     fclose(out);
